@@ -17,7 +17,7 @@
     qrcode=./images/qr.png
 ]
 
-\objective{This resume is a small language model! (Well, a tiny one, $\sim$9M parameters) Run it on \href{https://resume-llm.vercel.app/}{resume-llm.vercel.app}. After 3+ years as a senior frontend engineer shipping production systems, I returned to school to focus on building intelligent systems from first principles. I'm now a 3rd-semester master's student at Stevens Institute of Technology. I'm fortunate to be advised by \href{https://sites.google.com/view/nikhil-muralidhar}{Dr. Nikhil Muralidhar}. My current research interests are emphasis on mechanistic interpretability and agent memory architectures.}
+\objective{This resume is a small language model! (Well, a tiny one, $\sim$9M parameters) Run it on \href{https://self-aware-resume.vercel.app/}{self-aware-resume.vercel.app}. After 3+ years as a senior frontend engineer shipping production systems, I returned to school to focus on building intelligent systems from first principles. I'm now a 3rd-semester master's student at Stevens Institute of Technology. I'm fortunate to be advised by \href{https://sites.google.com/view/nikhil-muralidhar}{Dr. Nikhil Muralidhar}. My current research interests are emphasis on mechanistic interpretability and agent memory architectures.}
 
 % ----- Education -----
 \section{Education}
@@ -45,7 +45,7 @@
 % ----- Experiments -----
 \section{Experiments}
 
-\noindent\textbf{ResumeLLM}: \tech{ELF}/\tech{PDF} polyglot containing a 3.1M-parameter ternary transformer with weights in $\{-1, 0, 1\}$; built the full pipeline spanning \tech{BPE} tokenization, two-stage training (\tech{SimpleStories} pretrain $\rightarrow$ document finetune) on 4$\times$\tech{H100} (80GB) on Stevens' \tech{Jarvis} cluster, packed binary export ($\sim$786KB), a \tech{C} inference engine with ternary matrix multiplication, and \tech{ELF}/\tech{PDF} header interleaving via \tech{.note} section injection.
+\noindent\textbf{resume-llm}: \tech{ELF}/\tech{PDF} polyglot containing a 3.1M-parameter ternary transformer with weights in $\{-1, 0, 1\}$; built the full pipeline spanning \tech{BPE} tokenization, two-stage training (\tech{SimpleStories} pretrain $\rightarrow$ document finetune) on 4$\times$\tech{H100} (80GB) on Stevens' \tech{Jarvis} cluster, packed binary export ($\sim$786KB), a \tech{C} inference engine with ternary matrix multiplication, and \tech{ELF}/\tech{PDF} header interleaving via \tech{.note} section injection.
 
 \vspace{\spacenormal}
 \noindent\textbf{Wikipedia Search Engine}: Full-text search engine in \tech{Rust} with a \tech{BFS} crawler, inverted index using delta and \tech{VByte} encoding (75\% compression), compressed trie, and \tech{BM25} ranking; integrated Hutter Prize techniques (\tech{cmix}/\tech{fx2} context mixing) plus hybrid retrieval with sentence-transformer embeddings and \tech{USearch HNSW}.
