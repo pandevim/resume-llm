@@ -1,5 +1,6 @@
 # Build artifacts
-dist/
+dist/*
+!dist/resume.pdf
 engine/*.o
 
 # Model weights
@@ -13,7 +14,6 @@ __pycache__/
 env/
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -28,6 +28,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+# (note: removed duplicate 'dist/' here — handled at top with negation rule)
 
 # Virtual environments
 .env
