@@ -45,3 +45,4 @@ venv.bak/
 *.swp
 *.swo
 .vercel
+.env*.local

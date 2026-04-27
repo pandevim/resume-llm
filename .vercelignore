@@ -1,9 +1,9 @@
 # Build artifacts — not needed at runtime on Vercel.
-# The uploaded PDF is self-contained; engine/guppy and model/weights.bin
-# are only required locally to assemble the chatty PDF.
+# dist/ IS needed: dist/resume.pdf is served statically (pdf.js fetches
+# /dist/resume.pdf) and is bundled into the function via vercel.json's
+# includeFiles. Do not exclude it.
 engine/
 model/
-dist/
 polyglot/__pycache__/
 api/__pycache__/
 *.bin
@@ -13,3 +13,4 @@ update_index.py
 examples/
 viz/
 assets/
+raw/
