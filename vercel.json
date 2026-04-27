@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/upload.py": {
+    "api/*.py": {
       "includeFiles": "dist/resume.pdf"
     }
   },
