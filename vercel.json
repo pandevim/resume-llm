@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/upload.py": {
-      "runtime": "@vercel/python@latest",
+      "runtime": "@vercel/python@4.3.1",
       "includeFiles": "dist/resume.pdf"
     }
   },
