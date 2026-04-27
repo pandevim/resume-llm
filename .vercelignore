@@ -1,0 +1,15 @@
+# Build artifacts — not needed at runtime on Vercel.
+# The uploaded PDF is self-contained; engine/guppy and model/weights.bin
+# are only required locally to assemble the chatty PDF.
+engine/
+model/
+dist/
+polyglot/__pycache__/
+api/__pycache__/
+*.bin
+*.so
+build.sh
+update_index.py
+examples/
+viz/
+assets/

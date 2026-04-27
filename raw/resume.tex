@@ -1,0 +1,86 @@
+\documentclass{ExpressiveResume}
+
+% ----- Resume -----
+\begin{document}
+
+% ----- Name + Contact Information -----
+\resumeheader[
+    firstname=Aniruddha,
+    middleinitial=,
+    lastname=Pandey,
+    email=apandey10@stevens.edu,
+    phone=201-234-2986,
+    linkedin=pandevim,
+    github=pandevim,
+    % city=Hoboken,
+    % state=NJ,
+    qrcode=./images/qr.png
+]
+
+\objective{This resume is a small language model! (Well, a tiny one, $\sim$9M parameters) Run it on \href{https://resume-llm.vercel.app/}{resume-llm.vercel.app}. After 3+ years as a senior frontend engineer shipping production systems, I returned to school to focus on building intelligent systems from first principles. I'm now a 3rd-semester master's student at Stevens Institute of Technology. I'm fortunate to be advised by \href{https://sites.google.com/view/nikhil-muralidhar}{Dr. Nikhil Muralidhar}. My current research interests are emphasis on mechanistic interpretability and agent memory architectures.}
+
+% ----- Education -----
+\section{Education}
+
+\leftentry{Dec 2026 (Expected)}{M.S. in Computer Science}{Stevens Institute of Technology, Hoboken, NJ}{
+    \textbf{Coursework}: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms; Volunteer organizer, \href{https://www.stevens.edu/semcer-center-for-healthcare-innovation/next-gen-healthcare-innovators-symposium-2025\#organizing-committee}{Next-Gen Healthcare Innovators Symposium 2025} --- managed panel curation, speaker coordination, event logistics, and student research pitch presentations.
+}
+
+\leftentry{Sep 2021}{B.Tech in Computer Science and Engineering}{Lovely Professional University, India}{
+}
+
+% ----- Research -----
+\section{Graduate Research}
+
+\leftentry{Jan 2025 \newline Present}{}{}{
+    \textbf{Behavioral Fingerprint Detection}: Framework exploiting divergence tokens---sub-semantic artifacts from LLM generation---for model-family attribution across \tech{GPT-4o}, \tech{Claude}, \tech{Gemini}, \tech{Llama}, and \tech{Mistral}; multi-probe pipeline targeting AUROC $\geq$ 0.90 against humanization attacks. \textit{(In preparation)}
+
+    \medskip
+    \textbf{Tri-Mem}: Modality-matched memory hierarchies for multi-agent systems; three-layer cognitive architecture mapping semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Extends agent memory horizon from $\sim$30 to 100+ turns at 90\% token reduction; evaluated on a custom NovaCorp AuditBench with five agent ablations. \textit{(In preparation)}
+
+    \medskip
+    \textbf{NeuralSINDy}: Extending \tech{SINDy} with neural function approximators to discover governing equations from noisy, high-dimensional dynamical systems data. \textit{(In preparation)}
+}
+
+% ----- Experiments -----
+\section{Experiments}
+
+\noindent\textbf{ResumeLLM}: \tech{ELF}/\tech{PDF} polyglot containing a 3.1M-parameter ternary transformer with weights in $\{-1, 0, 1\}$; built the full pipeline spanning \tech{BPE} tokenization, two-stage training (\tech{SimpleStories} pretrain $\rightarrow$ document finetune) on 4$\times$\tech{H100} (80GB) on Stevens' \tech{Jarvis} cluster, packed binary export ($\sim$786KB), a \tech{C} inference engine with ternary matrix multiplication, and \tech{ELF}/\tech{PDF} header interleaving via \tech{.note} section injection.
+
+\vspace{\spacenormal}
+\noindent\textbf{Wikipedia Search Engine}: Full-text search engine in \tech{Rust} with a \tech{BFS} crawler, inverted index using delta and \tech{VByte} encoding (75\% compression), compressed trie, and \tech{BM25} ranking; integrated Hutter Prize techniques (\tech{cmix}/\tech{fx2} context mixing) plus hybrid retrieval with sentence-transformer embeddings and \tech{USearch HNSW}.
+
+% ----- Work Experience -----
+\section{Work Experience}
+
+\leftentry{Feb 2024 \newline Nov 2024}{Senior Frontend Engineer}{TaxTaker, Austin, TX (Remote)}{
+    Designed an encrypted \tech{localStorage} library for secure client-side data handling.
+}
+
+\leftentry{Oct 2022 \newline Sep 2023}{Data Visualization Engineer}{Spontivly, St. Petersburg, FL (Remote)}{
+    Built interactive dashboards for enterprise clients including \tech{Balenciaga} and the \tech{NFL}.
+}
+
+\leftentry{Sep 2021 \newline Oct 2022}{Junior Frontend Engineer}{Astro Malaysia, Kuala Lumpur (Remote)}{
+    Built an interactive tournament medal table for Commonwealth Games 2022 on \href{https://stadiumastro.com}{stadiumastro.com}.
+}
+
+\leftentry{Jun 2021}{Junior Frontend Developer}{Cilans Systems, Ahmedabad (Remote)}{
+}
+
+% ----- Skills -----
+\section{Skills}
+\noindent\textbf{Math}: linear algebra, information theory (Shannon entropy), bayesian inference, probability theory, convex/stochastic optimization
+
+\vspace{\spacesmall}
+\noindent\textbf{Modeling}: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), training pipelines (pretraining, fine-tuning (SFT, GRPO), ablation design), mechanistic interpretability
+
+\vspace{\spacesmall}
+\noindent\textbf{Systems}: Python, PyTorch, vLLM, SGLang, Weights \& Biases, \LaTeX{}
+
+% ----- Awards -----
+\section{Awards}
+
+\noindent 2026 RAISE-26 Finalist --- selected as 1 of 17 teams from 188 registrations; applied agent-based computational modeling and society simulation to public informatics challenges at Rutgers University \textbar{} 2022 SIH Judge \textbar{} 2021 Microsoft Imagine Cup World Finals Runner-Up \textbar{} 2020 HackMIT Health Tech Winner \textbar{} 2019 SAP Analytics Cloud Winner
+
+\end{document}

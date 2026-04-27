@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/upload.py": {
+      "includeFiles": ["api/**", "dist/resume.pdf"]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/upload.py"
+    }
+  ]
+}
