@@ -5,7 +5,7 @@
       "maxDuration": 300,
       "memory": 2048,
       "includeFiles": "pdfllm/**",
-      "excludeFiles": "{dist/**,raw/**,polyglot/**,viz/**,assets/**,index.html,*.md,dev.py,build.sh,update_index.py}"
+      "excludeFiles": "{dist/**,raw/**,polyglot/**,viz/**,assets/**,index.html,*.md,build.sh,update_index.py}"
     }
   },
   "rewrites": [
