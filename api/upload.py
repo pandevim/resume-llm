@@ -1,51 +1,26 @@
+"""POST /api/chat (form field `message`) -> {"response": ...} from the 83M PDFLLM persona model.
+
+The model (pdfllm/) reads the resume in context and answers in first person; it runs on ONNX Runtime
+on CPU, with the attention/SSM cache, so one answer takes about 10 s on Vercel.
+"""
+
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import JSONResponse
-import os
-import subprocess
-import shutil
-import tempfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pdfllm.engine import answer  # noqa: E402
 
 app = FastAPI()
-
-# Path to the polyglot PDF in the dist directory
-RESUME_PDF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "resume.pdf")
-
-def _run_pdf(pdf_path: str, *args):
-    """Make the PDF executable and run it with optional args."""
-    # Copy to a temp location so we can chmod without touching the original
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        shutil.copy2(pdf_path, tmp.name)
-        tmp_path = tmp.name
-
-    try:
-        os.chmod(tmp_path, 0o755)
-        return subprocess.run(
-            [tmp_path, *args],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
 
 
 @app.post("/api/chat")
 @app.post("/")
-async def chat_with_resume(message: str = Form(...)):
-    if not os.path.isfile(RESUME_PDF):
-        raise HTTPException(status_code=500, detail="Resume PDF not found on server.")
-
+def chat_with_resume(message: str = Form(...)):  # sync: FastAPI runs it in a thread, off the event loop
     try:
-        result = _run_pdf(RESUME_PDF, message)
-        output = (result.stdout or result.stderr).strip()
-        if not output:
-            output = "(no response)"
-        return JSONResponse({"response": output})
-
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="PDF engine timed out.")
+        out = answer(message[:500], cached=True, max_new=64)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse({"response": out["answer"] or "(no response)"})

@@ -1,0 +1,27 @@
+Aniruddha Pandey | apandey10@stevens.edu | 201-234-2986 | github.com/pandevim | linkedin.com/in/pandevim
+About
+This resume is a language model! (Well, a tiny one, ~83M parameters) Run it on self-aware-resume.vercel.app. I'm in my 4th-semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by Dr. Nikhil Muralidhar. My current research interests are symbolic regression, mechanistic interpretability and agent memory architectures.
+Education
+M.S. in Computer Science, Stevens Institute of Technology, Hoboken, NJ, Dec 2026 (Expected)
+Coursework: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms; Next-Gen Healthcare Innovators Symposium 2025 - managed panel curation, speaker coordination, event logistics, and student research pitch presentations.
+B.Tech in Computer Science and Engineering, Lovely Professional University, India, Sep 2021
+Graduate Research
+Research projects, Jan 2025 - Present:
+Behavioral Fingerprint Detection: Framework exploiting divergence tokens - sub-semantic artifacts from LLM generation - for model-family attribution across GPT-4o, Claude, Gemini, Llama, and Mistral; multi-probe pipeline targeting AUROC >= 0.90 against humanization attacks. (In preparation)
+Tri-Mem: Modality-matched memory hierarchies for multi-agent systems; three-layer cognitive architecture mapping semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Extends agent memory horizon from ~30 to 100+ turns at 90% token reduction; evaluated on a custom NovaCorp AuditBench with five agent ablations. (In preparation)
+NeuralSINDy: Extending SINDy with neural function approximators to discover governing equations from noisy, high-dimensional dynamical systems data. (In preparation)
+Work Experience
+AI Engineer Intern, Scholera, Hoboken, NJ (Hybrid), Jun 2026 - Aug 2026
+Built multi-stage retrieval with Pinecone and Vertex AI reranking alongside an automated RAGAS eval suite; implemented a computerized adaptive testing (IRT) engine with 2PL/3PL Item Response Theory models and EAP ability estimation.
+Senior Frontend Engineer, TaxTaker, Austin, TX (Remote), Feb 2024 - Nov 2024
+Designed an encrypted localStorage library for secure client-side data handling.
+Data Visualization Engineer, Spontivly, St. Petersburg, FL (Remote), Oct 2022 - Sep 2023
+Built interactive dashboards for enterprise clients including Balenciaga and the NFL.
+Junior Frontend Engineer, Astro Malaysia, Kuala Lumpur (Remote), Sep 2021 - Oct 2022
+Built an interactive tournament medal table for Commonwealth Games 2022 on stadiumastro.com.
+Skills
+Math: linear algebra, information theory, bayesian inference, probability theory, convex/stochastic optimization
+Modeling: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), training pipelines (pretraining, fine-tuning (SFT, GRPO), ablation design), mechanistic interpretability
+Systems: Python, PyTorch, vLLM, SGLang, Weights & Biases, LaTeX
+Awards
+RAISE-26 Finalist | 2022 SIH Judge | 2021 Microsoft Imagine Cup World Finals Runner-Up | 2020 HackMIT Health Tech Winner | 2019 SAP Analytics Cloud Winner
