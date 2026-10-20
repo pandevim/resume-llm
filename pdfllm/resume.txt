@@ -1,6 +1,6 @@
 Aniruddha Pandey | apandey10@stevens.edu | 201-234-2986 | github.com/pandevim | linkedin.com/in/pandevim
 About
-This resume is a language model! (Well, a tiny one, ~83M parameters) Run it on self-aware-resume.vercel.app. I'm in my 4th-semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by Dr. Nikhil Muralidhar. My current research interests are symbolic regression, mechanistic interpretability and agent memory architectures.
+I'm in my 4th-semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by Dr. Nikhil Muralidhar. My current research interests are symbolic regression, mechanistic interpretability and agent memory architectures.
 Education
 M.S. in Computer Science, Stevens Institute of Technology, Hoboken, NJ, Dec 2026 (Expected)
 Coursework: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms; Next-Gen Healthcare Innovators Symposium 2025 - managed panel curation, speaker coordination, event logistics, and student research pitch presentations.
