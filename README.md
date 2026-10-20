@@ -1,14 +1,40 @@
 # resume-llm — chat with my resume
 
-[self-aware-resume.vercel.app](https://self-aware-resume.vercel.app) shows my resume next to a chat box.
+[self-aware-resume.vercel.app](https://self-aware-resume.vercel.app) shows my resume above a chat box.
 The answers come from an 83M-parameter language model that reads the resume in its context and
 answers as me, in the first person. It runs on CPU inside a Vercel function, with no GPU and no
-outside API.
+outside API. While it answers, the PDF lights up where each word was copied from.
 
 ```
 $ curl -s -X POST -F "message=Where did you study?" https://self-aware-resume.vercel.app/api/chat
 {"response":"I studied at Stevens Institute of Technology, Hoboken, NJ."}
 ```
+
+## Copy-head heatmap (2026-10-20)
+
+The model has a copy head: at each step it attends over every earlier token and mixes
+`next = gate * vocab + (1 - gate) * copy`. The site shows that head live:
+
+- **On the PDF**, each answer token lights the words it attended to, weighted by its copy share
+  (1 - gate). Words built up over the answer stay shaded; the newest token's words flash.
+- **The token stream card** lists the last 8 tokens with their probability and where they came from:
+  `copy 0.98` (from the resume), `copy · q` (from your question), or `model` (the vocabulary side).
+- **Hover** an answer word to show only its sources.
+
+For "Where did you study?", "Hoboken" is 100% copied and 87% of the head's attention is on the
+Hoboken in the Education line; "studied" and "of" are 0–1% copied and light nothing.
+
+How it is wired:
+
+- `chunk.onnx` returns two more outputs, `copy_attn` (attention over positions) and `copy_gate`.
+  They were added to the existing graph as Identity nodes; `export_onnx.py` now emits them too.
+- `pdfllm/tools/word_map.py` aligns the PDF's words (PyMuPDF boxes) with `pdfllm/resume.txt` and
+  writes `pdfllm/resume_words.json`. 379 of the PDF's 410 words map; the rest are separators and
+  the PDF's intro line, which `resume.txt` does not have. `build.sh` reruns it.
+- `pdfllm.engine.stream()` turns each step's attention into weights on PDF words and yields one
+  event per token; `POST /api/chat/stream` sends them as NDJSON. `POST /api/chat` is unchanged.
+- The page replays tokens at a steady pace if the response arrives in one burst, so it works
+  whether or not the host streams.
 
 ## What's new (2026-10-20)
 
@@ -45,7 +71,7 @@ The site always uses the cache.
 ## How it works
 
 ```
-browser ──POST /api/chat (message)──▶ api/upload.py (FastAPI)
+browser ──POST /api/chat[/stream] (message)──▶ api/upload.py (FastAPI)
                                          │  one answer at a time (a lock), question ≤ 500 chars
                                          ▼
                                    pdfllm/engine.py
@@ -57,7 +83,8 @@ browser ──POST /api/chat (message)──▶ api/upload.py (FastAPI)
                  caches: attention K/V, Mamba-3 state, copy-head keys
                                          │  greedy, stops at <eos>/<sep> or 64 tokens
                                          ▼
-                              {"response": "..."}
+              {"response": "..."}  or, streamed, one line per token:
+              {"type":"token","t":" Hoboken","p":1.0,"copy":1.0,"src":[[word, weight], ...],"q":0.0}
 ```
 
 - **Weights** are stored as fp16 in `pdfllm/onnx/w0.npz` and `w1.npz` (166 MB, split because
@@ -74,17 +101,18 @@ browser ──POST /api/chat (message)──▶ api/upload.py (FastAPI)
 
 ```
 .
-├── index.html            the site: PDF preview (pdf.js) + chat
-├── api/upload.py         POST /api/chat -> {"response": ...}
+├── index.html            the site: PDF (pdf.js) with the copy-head heatmap, token stream, chat
+├── api/upload.py         POST /api/chat -> {"response": ...}; POST /api/chat/stream -> NDJSON tokens
 ├── pdfllm/
-│   ├── engine.py         load the model, build the prompt, generate (cached or uncached)
+│   ├── engine.py         load the model, build the prompt, generate (cached or uncached), stream()
 │   ├── onnx/             chunk.onnx + fp16 weights (w0.npz, w1.npz)
 │   ├── resume.txt        the resume text the model reads
+│   ├── resume_words.json PDF word boxes -> resume.txt ranges (tools/word_map.py)
 │   ├── tokenizer.vocab   tokenmonster vocabulary (+ tokenmonsterserver, its helper binary)
-│   └── tools/export_onnx.py   PDFLLM checkpoint -> ONNX
+│   └── tools/            export_onnx.py (checkpoint -> ONNX), word_map.py (PDF words -> resume.txt)
 ├── raw/                  resume.tex (source of truth) and its rendered PDF
 ├── dist/resume.pdf       the PDF the site shows
-├── build.sh              render raw/resume.tex -> raw/resume.pdf + dist/resume.pdf
+├── build.sh              render raw/resume.tex -> raw/resume.pdf + dist/resume.pdf, rebuild the word map
 ├── vercel.json           function config: 300 s, 2 GB, bundles pdfllm/
 └── engine/ model/ polyglot/ viz/   decommissioned GuppyLM polyglot (kept for reference)
 ```
@@ -95,6 +123,7 @@ browser ──POST /api/chat (message)──▶ api/upload.py (FastAPI)
 # 1. edit raw/resume.tex
 ./build.sh              # renders it to raw/resume.pdf and dist/resume.pdf
 # 2. make the same edit in pdfllm/resume.txt (what the chat model reads)
+python3 pdfllm/tools/word_map.py   # re-align the heatmap's word boxes (needs pymupdf)
 # 3. commit and push to main; Vercel deploys from main
 ```
 
@@ -133,7 +162,7 @@ The code is still in the repo for reference, and nothing on the site uses it:
 - `engine/`: C inference engine and Makefile (static musl build, weights linked with `objcopy`)
 - `model/export_guppy.py`: HF checkpoint → `weights.bin`
 - `polyglot/assemble.py`: ELF + PDF merger (writes `%PDF-1.4` in a safe NUL run in the first KB, outside the program headers)
-- `viz/`: the unfinished phase-2 attention heatmap
+- `viz/`: the unfinished phase-2 attention heatmap (the live site now has one, built from the copy head)
 
 `build.sh` no longer builds the polyglot. To rebuild it, use `engine/Makefile` and
 `polyglot/assemble.py` from the git history before commit `e0072b3`.

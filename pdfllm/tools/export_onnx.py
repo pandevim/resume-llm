@@ -4,6 +4,11 @@
 then save chunk.onnx pre-optimized (SessionOptions.optimized_model_filepath, ORT_ENABLE_EXTENDED) as
 pdfllm/onnx/chunk.onnx, and split w0.npz into files under 100 MB (Vercel's per-file limit).
 
+Besides probs and the caches, the graphs return the copy head of the last position: copy_attn (MAX,),
+its attention over the positions so far, and copy_gate (1,), with probs = gate * vocab + (1 - gate) * copy.
+The site draws its heatmap from these. (The chunk.onnx in the repo predates this: its two outputs were
+added afterwards as Identity nodes on the copy softmax and the gate sigmoid; same values.)
+
 Original notes:
  to two ONNX graphs that share one set of fp16 weight files.
 
@@ -126,7 +131,7 @@ class LM(nn.Module):
         a = sc.masked_fill(~valid, float("-inf")).softmax(-1)
         p_copy = torch.zeros(self.V).scatter_add(0, ids, a)
         gte = torch.sigmoid(self.lin(h, "copy.gate.weight") + self.g("copy.gate.bias"))
-        return gte * logits.softmax(-1) + (1 - gte) * p_copy
+        return gte * logits.softmax(-1) + (1 - gte) * p_copy, a, gte
 
 
 class Prefill(LM):
@@ -162,9 +167,9 @@ class Prefill(LM):
         ck = pad(self.lin(h, "copy.k.weight"))
         ids_full = F.pad(ids, (0, self.MAX - T))
         valid = torch.arange(self.MAX) < T
-        probs = self.mix(h[-1], ck, ids_full, valid)
+        probs, attn, gate = self.mix(h[-1], ck, ids_full, valid)
         return (probs, torch.stack(Ks), torch.stack(Vs), torch.stack(TH), torch.stack(SS), torch.stack(KK),
-                torch.stack(VV), ck, ids_full)
+                torch.stack(VV), ck, ids_full, attn, gate)
 
 
 class Step(LM):
@@ -195,9 +200,9 @@ class Step(LM):
         h = rms(x, self.g("norm.weight"))[0]
         ck = torch.where(here[:, None], self.lin(h, "copy.k.weight")[None], ck)
         ids_full = torch.where(here, tok, ids_full)
-        probs = self.mix(h, ck, ids_full, seen[0])
+        probs, attn, gate = self.mix(h, ck, ids_full, seen[0])
         return (probs, torch.stack(Ko), torch.stack(Vo), torch.stack(THo), torch.stack(SSo), torch.stack(KKo),
-                torch.stack(VVo), ck, ids_full)
+                torch.stack(VVo), ck, ids_full, attn, gate)
 
 
 class Chunk(LM):
@@ -248,12 +253,13 @@ class Chunk(LM):
         h = rms(x, self.g("norm.weight"))
         ck = torch.where(new[:, None], self.lin(h, "copy.k.weight")[src], ck)
         ids_full = torch.where(new, ids[src], ids_full)
-        probs = self.mix(h[-1], ck, ids_full, j <= pos + C - 1)
+        probs, attn, gate = self.mix(h[-1], ck, ids_full, j <= pos + C - 1)
         return (probs, torch.stack(Ko), torch.stack(Vo), torch.stack(THo), torch.stack(SSo), torch.stack(KKo),
-                torch.stack(VVo), ck, ids_full)
+                torch.stack(VVo), ck, ids_full, attn, gate)
 
 
 CACHE = ["K", "V", "theta", "ssm", "sk", "sv", "copy_k", "ids_full"]
+COPY = ["copy_attn", "copy_gate"]
 
 
 def main():
@@ -268,12 +274,12 @@ def main():
     ids = torch.randint(0, 16000, (1, 20))
     with torch.no_grad():
         outs = pre(ids)
-    torch.onnx.export(pre, (ids,), OUT / "prefill.onnx", input_names=["ids"], output_names=["probs"] + CACHE,
+    torch.onnx.export(pre, (ids,), OUT / "prefill.onnx", input_names=["ids"], output_names=["probs"] + CACHE + COPY,
                       dynamic_axes={"ids": {1: "T"}}, opset_version=17, do_constant_folding=False, dynamo=False)
     chk = Chunk(w, a).eval()
-    cache = [torch.zeros_like(t) for t in outs[1:]]
+    cache = [torch.zeros_like(t) for t in outs[1 : 1 + len(CACHE)]]
     torch.onnx.export(chk, (ids[:, :8], torch.tensor(0), *cache), OUT / "chunk.onnx", input_names=["ids", "pos"] + CACHE,
-                      output_names=["probs"] + [c + "_out" for c in CACHE], dynamic_axes={"ids": {1: "C"}},
+                      output_names=["probs"] + [c + "_out" for c in CACHE] + COPY, dynamic_axes={"ids": {1: "C"}},
                       opset_version=17, do_constant_folding=False, dynamo=False)
     for name in ("prefill", "chunk"):  # weights become graph inputs, fed once-built arrays by the app
         m = onnx.load(OUT / f"{name}.onnx")
