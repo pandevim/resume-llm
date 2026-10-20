@@ -1,203 +1,139 @@
-# resume_pdf_v2 — a PDF that talks back
+# resume-llm — chat with my resume
 
-A single file that is **simultaneously a valid PDF and a Linux ELF
-executable**. Open it in a PDF reader and you see a cover page with the
-original document attached. Run it from a shell and it answers prompts
-using a tiny language model embedded in the binary.
-
-```
-$ ./dist/resume.pdf "hi guppy"
-oh hello. the water is fresh today.
-
-$ ./dist/resume.pdf "do you like bubbles"
-the bubbles are back. bubbles are my second favorite thing after food.
-
-$ file dist/resume.pdf
-dist/resume.pdf: ELF 64-bit LSB executable, x86-64, statically linked, stripped
-
-$ pdfinfo dist/resume.pdf | head -3
-Pages:           1
-Page size:       612 x 792 pts (letter)
-PDF version:     1.4
-```
-
-## Roadmap
-
-- **Phase 1 (this scaffold — working)** — embed
-  [GuppyLM](https://huggingface.co/arman-bd/guppylm-9M) (8.7M params,
-  MIT) inside the polyglot. The executable is a generic chat with
-  Guppy; it ignores the PDF content. End-to-end pipeline verified:
-  weight export → C inference engine → static ELF → ELF/PDF polyglot.
-- **Phase 2** — extractive QA with a pointer/copy head. At build time
-  we run GuppyLM's encoder over the source PDF tokens and cache the K/V
-  vectors into the binary. At inference time the question goes through
-  GuppyLM and a single cross-attention step picks out the most relevant
-  PDF tokens. The attention distribution _is_ the answer; phase 2 also
-  ships a viridis heatmap renderer (`viz/`).
-
-## Architecture (phase 1)
+[self-aware-resume.vercel.app](https://self-aware-resume.vercel.app) shows my resume next to a chat box.
+The answers come from an 83M-parameter language model that reads the resume in its context and
+answers as me, in the first person. It runs on CPU inside a Vercel function, with no GPU and no
+outside API.
 
 ```
-   ┌─────────────────── resume.pdf ───────────────────┐
-   │  ELF header (bytes 0..63)                          │  ← Linux loader
-   │  Program header table (64..400)                    │      maps via phdrs
-   │  '%PDF-1.4' marker injected at byte 400            │  ← PDF reader
-   │  ...rest of ELF body...                            │      scans first 1KB
-   │  .text   inference.c                               │      for marker, then
-   │  .rodata weights.bin (GuppyLM, fp16, ~17 MB)       │      parses forward
-   │  ...end of ELF...                                  │
-   │  PDF objects: catalog, cover page, /EmbeddedFile   │
-   │  xref + trailer + %%EOF                            │
-   └────────────────────────────────────────────────────┘
+$ curl -s -X POST -F "message=Where did you study?" https://self-aware-resume.vercel.app/api/chat
+{"response":"I studied at Stevens Institute of Technology, Hoboken, NJ."}
 ```
 
-- **ELF** is statically linked against musl libc; no dynamic loader, no
-  network, no Python at runtime.
-- **GuppyLM** is loaded from a flat fp16 blob produced by
-  `model/export_guppy.py` and linked in via `objcopy`.
-- **Tokenizer** is ByteLevel BPE (GPT-2 style) — special tokens matched
-  literally, then bytes go through the byte→codepoint table in
-  `engine/bytelevel.h`, then greedy longest-match over the vocab.
-  Output is reverse-mapped before printing.
-- **PDF readers** locate `%PDF-1.4` within the first 1024 bytes. The
-  assembler picks a NUL run **outside the program header table** — the
-  zeros inside phdr fields are load-bearing (they're the upper bytes of
-  small `p_flags` values and the literal-zero `p_offset`), so naïve
-  "find any NUL run" corrupts the loader.
-- **Original PDF** is attached as an `/EmbeddedFile` so it shows up in
-  the Attachments pane of any standards-compliant viewer.
+## What's new (2026-10-20)
+
+- **New model.** The chat now uses `p1_grpo_persona_nosquad`, the standard model from
+  [PDFLLM](https://github.com/pandevim/PDFLLM). It is an 83M hybrid: each of its 24 blocks runs
+  attention and Mamba-3 in parallel, and a copy head lets it quote names, dates and numbers straight
+  from the resume. It was pretrained on 100B tokens, then tuned with SFT and GRPO on resume and
+  persona question answering. It replaces GuppyLM, which ignored the resume (see
+  [Decommissioned](#decommissioned-guppylm-polyglot)).
+- **ONNX Runtime instead of PyTorch.** PyTorch alone is larger than Vercel's 500 MB limit for a
+  Python function. The model is exported to ONNX and run with `onnxruntime`, whose CPU package is
+  about 63 MB. The whole function is about 290 MB.
+- **KV/SSM cache.** The model reads the resume once and then adds one token at a time, reusing the
+  attention keys/values and the Mamba-3 state. Without the cache, every new token re-reads the
+  whole ~950-token prompt.
+- **Chunked prompt reading.** The prompt is read 256 tokens at a time on top of the cache, so
+  memory grows with 256 × 1024 instead of the prompt length squared. Reading the whole prompt in
+  one call peaked near 1.9 GB; chunks of 256 peak near 950 MB. The next-token probabilities match
+  a single full read (largest difference 1.8e-7 when checked with 128-token chunks).
+- **The site's PDF is now a plain PDF.** `dist/resume.pdf` is the rendered resume (160 KB). It used
+  to be the 17.7 MB ELF/PDF polyglot.
+
+Measured on Vercel (2 vCPUs, 2 GB), question "Where did you study?", 952-token prompt:
+
+| | with cache | without cache |
+|---|---|---|
+| read the resume (first token) | ~7 s | ~7 s |
+| each further token | 0.14 s | 6.6 s |
+| whole answer (19 tokens) | ~10 s | 131 s |
+| peak memory | ~950 MB | ~950 MB |
+
+The site always uses the cache.
+
+## How it works
+
+```
+browser ──POST /api/chat (message)──▶ api/upload.py (FastAPI)
+                                         │  one answer at a time (a lock), question ≤ 500 chars
+                                         ▼
+                                   pdfllm/engine.py
+   prompt = <sys>persona rule<sep><user>Resume:\n{pdfllm/resume.txt}\n\nQuestion: {q}<sep><assistant>
+                                         │  tokenmonster 16K tokenizer
+                                         ▼
+                 onnx/chunk.onnx  (ONNX Runtime, CPU, fp32)
+                 read the prompt in 256-token chunks, then 1 token per call
+                 caches: attention K/V, Mamba-3 state, copy-head keys
+                                         │  greedy, stops at <eos>/<sep> or 64 tokens
+                                         ▼
+                              {"response": "..."}
+```
+
+- **Weights** are stored as fp16 in `pdfllm/onnx/w0.npz` and `w1.npz` (166 MB, split because
+  Vercel caps each file at 100 MB). At start-up they are cast to fp32 and passed to the graph as
+  inputs, with 2-D weights pre-transposed.
+- **The graph** (`chunk.onnx`, 1 MB) holds the computation only. It is saved already optimized,
+  and the session runs with `enable_mem_reuse=False`. With memory reuse on, ORT spent about 13 s
+  planning this 13k-node graph at start-up; with it off, start-up takes about 0.2 s and speed and
+  peak memory are unchanged.
+- **The resume the model reads** is `pdfllm/resume.txt`, a cleaned text version in the format the
+  model was trained on. It is not the PDF.
 
 ## Layout
 
 ```
 .
-├── build.sh                       end-to-end pipeline
-├── engine/
-│   ├── inference.c                forward pass, tokenizer, sampler
-│   ├── bytelevel.h                generated GPT-2 byte_to_unicode table
-│   └── Makefile                   musl-static + objcopy
-├── model/
-│   └── export_guppy.py            HF checkpoint -> weights.bin
-├── polyglot/
-│   ├── assemble.py                ELF + PDF merger (phdr-aware)
-│   └── make_sample_pdf.py         tiny sample doc for the worked example
-├── examples/                      sample PDFs (generated)
-├── viz/                           phase-2 attention heatmap (stub)
-└── dist/                          output: resume.pdf
+├── index.html            the site: PDF preview (pdf.js) + chat
+├── api/upload.py         POST /api/chat -> {"response": ...}
+├── pdfllm/
+│   ├── engine.py         load the model, build the prompt, generate (cached or uncached)
+│   ├── onnx/             chunk.onnx + fp16 weights (w0.npz, w1.npz)
+│   ├── resume.txt        the resume text the model reads
+│   ├── tokenizer.vocab   tokenmonster vocabulary (+ tokenmonsterserver, its helper binary)
+│   └── tools/export_onnx.py   PDFLLM checkpoint -> ONNX
+├── raw/                  resume.tex (source of truth) and its rendered PDF
+├── dist/resume.pdf       the PDF the site shows
+├── build.sh              render raw/resume.tex -> raw/resume.pdf + dist/resume.pdf
+├── vercel.json           function config: 300 s, 2 GB, bundles pdfllm/
+└── engine/ model/ polyglot/ viz/   decommissioned GuppyLM polyglot (kept for reference)
 ```
 
-## Build
-
-Requires:
-
-- `musl-gcc` (Debian/Ubuntu: `sudo apt install musl-tools`).
-  Falls back to `gcc -static` if musl isn't installed.
-- `objcopy` (`binutils`)
-- Python 3 with `torch`, `huggingface_hub`, `tokenizers` (export step
-  only — at runtime the polyglot has zero Python dependencies)
+## Updating the resume
 
 ```bash
-./build.sh raw/resume.pdf        # embed a different source PDF
+# 1. edit raw/resume.tex
+./build.sh              # renders it to raw/resume.pdf and dist/resume.pdf
+# 2. make the same edit in pdfllm/resume.txt (what the chat model reads)
+# 3. commit and push to main; Vercel deploys from main
 ```
 
-The pipeline:
+The prompt plus answer must fit in the model's 1,024-token context. The current resume is about 950
+tokens with the question, which leaves room for a 64-token answer. A much longer resume would need
+trimming.
 
-1. `model/export_guppy.py` downloads `arman-bd/guppylm-9M` and writes
-   `model/weights.bin` (~17 MB, fp16).
-2. `engine/Makefile` wraps that file with `objcopy` and statically links
-   it together with `engine/inference.c` into `engine/guppy`.
-3. `polyglot/assemble.py` parses the ELF program-header table, finds a
-   safe NUL run in the first KB outside any header table, writes
-   `%PDF-1.4` there, and appends a PDF wrapper with the source as an
-   `/EmbeddedFile`.
+## Re-exporting the model
 
-Final output: `dist/resume.pdf` (~17 MB, executable, also a valid PDF).
+`pdfllm/tools/export_onnx.py` turns a PDFLLM checkpoint into the graph and weights above. Its
+docstring lists the steps: export, save the graph pre-optimized, split the weights under 100 MB.
+The checkpoint itself (`final.pt`, 332 MB) is not in this repo; it lives with PDFLLM on the cluster.
 
-### Regenerating `engine/bytelevel.h`
+## Decommissioned: GuppyLM polyglot
 
-The file is committed and rarely changes (it encodes the fixed GPT-2
-ByteLevel mapping), but if you need to regenerate it:
-
-```bash
-python3 -c '
-def b2u():
-    bs = (list(range(33,127)) + list(range(161,173)) + list(range(174,256)))
-    cs = bs[:]
-    n = 0
-    for b in range(256):
-        if b not in bs: bs.append(b); cs.append(256+n); n += 1
-    return {b:c for b,c in zip(bs,cs)}
-m = b2u()
-print("#ifndef BYTELEVEL_H\n#define BYTELEVEL_H")
-print("static const char* const bytelevel[256] = {")
-for b in range(256):
-    s = chr(m[b]).encode(); print("    \"" + "".join(f"\\\\x{x:02x}" for x in s) + "\",")
-print("};\nstatic const int bytelevel_len[256] = {")
-for b in range(256): print(f"    {len(chr(m[b]).encode())},")
-print("};")
-mx = max(m.values())
-print(f"#define BYTELEVEL_INV_SIZE 0x{mx+1:04x}")
-print("static const int bytelevel_inv[BYTELEVEL_INV_SIZE] = {")
-inv = {m[b]:b for b in range(256)}
-for cp in range(mx+1): print(f"    {inv.get(cp,-1)},")
-print("};\n#endif")
-' > engine/bytelevel.h
-```
-
-## Usage
-
-```bash
-chmod +x dist/resume.pdf
-./dist/resume.pdf "do you like bubbles"
-
-# or open in any PDF reader — the original is in the Attachments pane.
-xdg-open dist/document.pdf
-```
-
-## Verified architecture (against `arman-bd/guppylm-9M`)
-
-| Component                                         | Value                                              |
-| ------------------------------------------------- | -------------------------------------------------- |
-| Params                                            | 8.7M (≈ 8,726,016 — checked)                       |
-| Layers                                            | 6                                                  |
-| `d_model` / `n_heads` / `head_dim`                | 384 / 6 / 64                                       |
-| `d_ff`                                            | 768                                                |
-| `vocab_size` (config) / vocab entries (tokenizer) | 4096 / 2418                                        |
-| `max_seq_len`                                     | 128                                                |
-| Norm                                              | LayerNorm, **pre-norm**                            |
-| FFN                                               | ReLU                                               |
-| Position                                          | Learned embeddings                                 |
-| LM head                                           | **Weight-tied** with `tok_emb` (skipped at export) |
-| Tokenizer                                         | BPE, **ByteLevel** pretokenizer/decoder            |
-| Specials                                          | `<pad>`=0, `<\|im_start\|>`=1, `<\|im_end\|>`=2    |
-| Chat template                                     | `<\|im_start\|>{role}\n{content}<\|im_end\|>`      |
-| Sampling                                          | temperature 0.7, top-k 50 (matches reference)      |
-
-State-dict key names used by the exporter (verified via
-`python3 model/export_guppy.py --inspect`):
+Until 2026-10-20 the site ran **GuppyLM** ([arman-bd/guppylm-9M](https://huggingface.co/arman-bd/guppylm-9M),
+8.7M parameters, MIT), a small chat model that speaks as a fish. It was compiled into a static C
+binary and merged with the resume into one file that was both a valid PDF and a Linux ELF
+executable:
 
 ```
-tok_emb.weight                     pos_emb.weight
-blocks.{i}.norm1.{weight,bias}     blocks.{i}.norm2.{weight,bias}
-blocks.{i}.attn.qkv.{weight,bias}  blocks.{i}.attn.out.{weight,bias}
-blocks.{i}.ffn.up.{weight,bias}    blocks.{i}.ffn.down.{weight,bias}
-norm.{weight,bias}
+$ ./dist/resume.pdf "hi guppy"
+oh hello. the water is fresh today.
 ```
 
-## Remaining caveats
+The API copied that file, ran it with the question, and returned what it printed.
 
-- **BPE matching is greedy longest-match, not full merge order.** We
-  apply the correct ByteLevel preprocessing and decoding, but skip the
-  BPE merge-rule application — at the current vocab and prompt sizes
-  longest-match almost always picks the same tokens HF would, and chat
-  output is coherent. Edge-case prompts may tokenize slightly
-  differently from the reference Python.
-- **No KV cache.** The forward pass recomputes the full sequence on
-  every step. At ≤128 tokens this is fast enough on a single CPU core;
-  add a cache only if it becomes a bottleneck.
-- **Strict PDF viewers (e.g. pdf.js)** may reject the file because
-  bytes precede `%PDF-`. Most desktop readers (Evince, Okular, Adobe,
-  macOS Preview, Foxit) accept it — the spec only requires the marker
-  within the first 1024 bytes, which we honor.
-- **Linux x86_64 only.** No fallback for ARM, macOS, or Windows in this
-  iteration.
+Why it was retired:
+
+- **It never read the resume.** It answered every prompt as Guppy, so it could not answer questions
+  about me. Making it read the PDF was planned as "phase 2" and never built.
+- **The new model does read it.** On our resume eval, PDFLLM's persona model scores 0.80.
+
+The code is still in the repo for reference, and nothing on the site uses it:
+
+- `engine/`: C inference engine and Makefile (static musl build, weights linked with `objcopy`)
+- `model/export_guppy.py`: HF checkpoint → `weights.bin`
+- `polyglot/assemble.py`: ELF + PDF merger (writes `%PDF-1.4` in a safe NUL run in the first KB, outside the program headers)
+- `viz/`: the unfinished phase-2 attention heatmap
+
+`build.sh` no longer builds the polyglot. To rebuild it, use `engine/Makefile` and
+`polyglot/assemble.py` from the git history before commit `e0072b3`.
