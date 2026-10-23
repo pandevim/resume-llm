@@ -58,7 +58,7 @@ How it is wired:
 - **The site's PDF is now a plain PDF.** `dist/resume.pdf` is the rendered resume (160 KB). It used
   to be the 17.7 MB ELF/PDF polyglot.
 
-Measured on Vercel (2 vCPUs, 2 GB), question "Where did you study?", 952-token prompt:
+Measured on Vercel (Hobby plan: 1 vCPU, 2 GB), question "Where did you study?", 952-token prompt:
 
 | | with cache | without cache |
 |---|---|---|
