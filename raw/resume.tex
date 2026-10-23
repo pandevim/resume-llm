@@ -17,13 +17,13 @@
     qrcode=./images/qr.png
 ]
 
-\objective{This resume is a language model! (Well, a tiny one, $\sim$83M parameters) Run it on \href{https://self-aware-resume.vercel.app}{self-aware-resume.vercel.app}. I'm in my 4th-semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by \href{https://sites.google.com/view/nikhil-muralidhar}{Dr. Nikhil Muralidhar}. My current research interests are symbolic regression, mechanistic interpretability and agent memory architectures.}
+\objective{Chat with this resume at \href{https://self-aware-resume.vercel.app}{self-aware-resume.vercel.app}. I'm in my 4th semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by \href{https://sites.google.com/view/nikhil-muralidhar}{Dr. Nikhil Muralidhar}. My current research interests are symbolic regression, LLM pretraining, reinforcement learning, and agent memory architectures.}
 
 % ----- Education -----
 \section{Education}
 
-\leftentry{Dec 2026 (Expected)}{M.S. in Computer Science}{Stevens Institute of Technology, Hoboken, NJ}{
-    \textbf{Coursework}: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms; \href{https://www.stevens.edu/semcer-center-for-healthcare-innovation/next-gen-healthcare-innovators-symposium-2025\#organizing-committee}{Next-Gen Healthcare Innovators Symposium 2025} --- managed panel curation, speaker coordination, event logistics, and student research pitch presentations.
+\leftentry{Jan 2025 \newline Dec 2026 \newline (Expected)}{M.S. in Computer Science}{Stevens Institute of Technology, Hoboken, NJ}{
+    \textbf{Coursework}: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms. \textbf{Volunteer}: \href{https://www.stevens.edu/semcer-center-for-healthcare-innovation/next-gen-healthcare-innovators-symposium-2025\#organizing-committee}{Next-Gen Healthcare Innovators Symposium 2025} (panel curation, speaker coordination, event logistics, student research pitches).
 }
 
 \leftentry{Sep 2021}{B.Tech in Computer Science and Engineering}{Lovely Professional University, India}{
@@ -32,21 +32,23 @@
 % ----- Research -----
 \section{Graduate Research}
 
-\leftentry{Jan 2025 \newline Present}{}{}{
-    \textbf{Behavioral Fingerprint Detection}: Framework exploiting divergence tokens---sub-semantic artifacts from LLM generation---for model-family attribution across \tech{GPT-4o}, \tech{Claude}, \tech{Gemini}, \tech{Llama}, and \tech{Mistral}; multi-probe pipeline targeting AUROC $\geq$ 0.90 against humanization attacks. \textit{(In preparation)}
+\noindent
+\begin{minipage}[t]{0.94\textwidth}\raggedright
+    \textbf{Self-Aware Resume}: 83M hybrid model (attention and \tech{Mamba-3} in parallel) with a copy head that quotes from the document in context; pretrained on 100B tokens on 4$\times$\tech{H100}, then tuned with \tech{SFT} and \tech{GRPO}. Scores 0.80 on resume QA vs 0.15 for \tech{Falcon-H1-Tiny-90M} and \tech{SmolLM2-135M}; runs on CPU via \tech{ONNX Runtime}.
 
     \medskip
-    \textbf{Tri-Mem}: Modality-matched memory hierarchies for multi-agent systems; three-layer cognitive architecture mapping semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Extends agent memory horizon from $\sim$30 to 100+ turns at 90\% token reduction; evaluated on a custom NovaCorp AuditBench with five agent ablations. \textit{(In preparation)}
+    \textbf{\href{https://github.com/pandevim/TriMem}{Tri-Mem}}: Modality-matched memory for multi-agent systems; semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Cuts token cost by 84\% on a custom NovaCorp AuditBench and reaches 81.4\% on \tech{LongMemEval}. \textit{(Presented at the \href{https://www.stevens.edu/icns-center-for-innovative-computing-and-networked-systems/symposium\#spring-2026}{ICNS Symposium}, Spring 2026)}
 
     \medskip
     \textbf{NeuralSINDy}: Extending \tech{SINDy} with neural function approximators to discover governing equations from noisy, high-dimensional dynamical systems data. \textit{(In preparation)}
-}
+\end{minipage}\par
+\vspace{\spacenormal}
 
 % ----- Work Experience -----
 \section{Work Experience}
 
 \leftentry{Jun 2026 \newline Aug 2026}{AI Engineer Intern}{Scholera, Hoboken, NJ (Hybrid)}{
-    Built multi-stage retrieval with \tech{Pinecone} and \tech{Vertex AI} reranking alongside an automated \tech{RAGAS} eval suite; implemented a computerized adaptive testing (\tech{IRT}) engine with 2PL/3PL Item Response Theory models and \tech{EAP} ability estimation.
+    Built an adaptive quiz engine on a 3PL Item Response Theory (\tech{IRT}) model, with \tech{EAP} ability estimation and Fisher Information item selection; developed a multi-stage RAG pipeline with Cross-Encoder reranking, citation checks, and out-of-corpus refusals, evaluated with \tech{RAGAS} (MRR, Recall@K, faithfulness).
 }
 
 \leftentry{Feb 2024 \newline Nov 2024}{Senior Frontend Engineer}{TaxTaker, Austin, TX (Remote)}{
@@ -66,10 +68,10 @@
 \noindent\textbf{Math}: linear algebra, information theory, bayesian inference, probability theory, convex/stochastic optimization
 
 \vspace{\spacesmall}
-\noindent\textbf{Modeling}: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), training pipelines (pretraining, fine-tuning (SFT, GRPO), ablation design), mechanistic interpretability
+\noindent\textbf{Modeling}: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), distributed training (DDP, torch.compile, bf16), quantization, mechanistic interpretability
 
 \vspace{\spacesmall}
-\noindent\textbf{Systems}: Python, PyTorch, vLLM, SGLang, Weights \& Biases, \LaTeX{}
+\noindent\textbf{Systems}: Python, PyTorch, vLLM, W\&B, Slurm
 
 % ----- Awards -----
 \section{Awards}

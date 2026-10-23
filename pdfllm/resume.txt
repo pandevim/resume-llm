@@ -1,18 +1,18 @@
 Aniruddha Pandey | apandey10@stevens.edu | 201-234-2986 | github.com/pandevim | linkedin.com/in/pandevim
 About
-I'm in my 4th-semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by Dr. Nikhil Muralidhar. My current research interests are symbolic regression, mechanistic interpretability and agent memory architectures.
+I'm in my 4th semester of master's at Stevens Institute of Technology. I'm fortunate to be advised by Dr. Nikhil Muralidhar. My current research interests are symbolic regression, LLM pretraining, reinforcement learning, and agent memory architectures.
 Education
-M.S. in Computer Science, Stevens Institute of Technology, Hoboken, NJ, Dec 2026 (Expected)
-Coursework: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms; Next-Gen Healthcare Innovators Symposium 2025 - managed panel curation, speaker coordination, event logistics, and student research pitch presentations.
+M.S. in Computer Science, Stevens Institute of Technology, Hoboken, NJ, Jan 2025 - Dec 2026 (Expected)
+Coursework: Statistical Machine Learning, Deep Learning, NLP, Scientific Discovery in ML, Advanced Algorithms. Volunteer: Next-Gen Healthcare Innovators Symposium 2025 (panel curation, speaker coordination, event logistics, student research pitches).
 B.Tech in Computer Science and Engineering, Lovely Professional University, India, Sep 2021
 Graduate Research
-Research projects, Jan 2025 - Present:
-Behavioral Fingerprint Detection: Framework exploiting divergence tokens - sub-semantic artifacts from LLM generation - for model-family attribution across GPT-4o, Claude, Gemini, Llama, and Mistral; multi-probe pipeline targeting AUROC >= 0.90 against humanization attacks. (In preparation)
-Tri-Mem: Modality-matched memory hierarchies for multi-agent systems; three-layer cognitive architecture mapping semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Extends agent memory horizon from ~30 to 100+ turns at 90% token reduction; evaluated on a custom NovaCorp AuditBench with five agent ablations. (In preparation)
+Research projects:
+Self-Aware Resume: 83M hybrid model (attention and Mamba-3 in parallel) with a copy head that quotes from the document in context; pretrained on 100B tokens on 4×H100, then tuned with SFT and GRPO. Scores 0.80 on resume QA vs 0.15 for Falcon-H1-Tiny-90M and SmolLM2-135M; runs on CPU via ONNX Runtime.
+Tri-Mem: Modality-matched memory for multi-agent systems; semantic memory (sparse-attention KV chunks), episodic memory (visual compression), and declarative memory (vector RAG) with entropy-driven routing. Cuts token cost by 84% on a custom NovaCorp AuditBench and reaches 81.4% on LongMemEval. (Presented at the ICNS Symposium, Spring 2026)
 NeuralSINDy: Extending SINDy with neural function approximators to discover governing equations from noisy, high-dimensional dynamical systems data. (In preparation)
 Work Experience
 AI Engineer Intern, Scholera, Hoboken, NJ (Hybrid), Jun 2026 - Aug 2026
-Built multi-stage retrieval with Pinecone and Vertex AI reranking alongside an automated RAGAS eval suite; implemented a computerized adaptive testing (IRT) engine with 2PL/3PL Item Response Theory models and EAP ability estimation.
+Built an adaptive quiz engine on a 3PL Item Response Theory (IRT) model, with EAP ability estimation and Fisher Information item selection; developed a multi-stage RAG pipeline with Cross-Encoder reranking, citation checks, and out-of-corpus refusals, evaluated with RAGAS (MRR, Recall@K, faithfulness).
 Senior Frontend Engineer, TaxTaker, Austin, TX (Remote), Feb 2024 - Nov 2024
 Designed an encrypted localStorage library for secure client-side data handling.
 Data Visualization Engineer, Spontivly, St. Petersburg, FL (Remote), Oct 2022 - Sep 2023
@@ -21,7 +21,7 @@ Junior Frontend Engineer, Astro Malaysia, Kuala Lumpur (Remote), Sep 2021 - Oct 
 Built an interactive tournament medal table for Commonwealth Games 2022 on stadiumastro.com.
 Skills
 Math: linear algebra, information theory, bayesian inference, probability theory, convex/stochastic optimization
-Modeling: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), training pipelines (pretraining, fine-tuning (SFT, GRPO), ablation design), mechanistic interpretability
-Systems: Python, PyTorch, vLLM, SGLang, Weights & Biases, LaTeX
+Modeling: transformer architectures (encoder/decoder, sparse attention, KV caching), tokenizer design (BPE), distributed training (DDP, torch.compile, bf16), quantization, mechanistic interpretability
+Systems: Python, PyTorch, vLLM, W&B, Slurm
 Awards
 RAISE-26 Finalist | 2022 SIH Judge | 2021 Microsoft Imagine Cup World Finals Runner-Up | 2020 HackMIT Health Tech Winner | 2019 SAP Analytics Cloud Winner
