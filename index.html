@@ -3,350 +3,147 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Chat with my resume. An 83M language model answers from it, and a heatmap shows which words it copied.">
-<title>Chat with my Resume</title>
+<meta name="description" content="Self-Aware Resume: an 83M hybrid model (attention and Mamba-3 in parallel) with a copy head that quotes from the document in context. Pretrained on 100B tokens, tuned with SFT and GRPO, and run on CPU via ONNX Runtime. Ask it anything about the resume.">
+<meta property="og:title" content="Self-Aware Resume">
+<meta property="og:description" content="Chat with my resume. An 83M hybrid model with a copy head answers from it, and the PDF lights up where each word was copied from.">
+<meta property="og:url" content="https://self-aware-resume.vercel.app">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<title>Self-Aware Resume</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* Warm paper, near-black ink, one red accent; dark mode swaps in a green accent. */
 :root {
-  --paper: oklch(0.97 0.008 85);
-  --paper-2: oklch(0.94 0.010 85);
-  --paper-3: oklch(0.91 0.012 85);
-  --ink: oklch(0.18 0.010 60);
-  --ink-2: oklch(0.36 0.010 60);
-  --ink-3: oklch(0.55 0.010 60);
-  --ink-4: oklch(0.72 0.008 60);
-  --rule: oklch(0.85 0.008 70);
-  --rule-2: oklch(0.78 0.010 70);
-  --accent: oklch(0.54 0.18 28);
-  --accent-wash: oklch(0.54 0.18 28 / 0.10);
-  --on-accent: oklch(0.97 0.008 85);
-  --heat: 192, 57, 43;            /* rgb for the heatmap: red in both themes */
-  --card: rgba(250, 247, 240, 0.92);
-  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --serif: 'Source Serif 4', ui-serif, Georgia, serif;
-  --pad: 16px;
+  color-scheme: light;
+  --paper: #f7f4ee; --paper-2: #efebe3; --rule: #ddd8ce;
+  --ink: #1d1b18; --ink-2: #5a564f; --ink-3: #8c877e;
+  --heat: 192, 57, 43;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --sans: 'Inter', system-ui, sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: oklch(0.14 0.008 60);
-    --paper-2: oklch(0.18 0.008 60);
-    --paper-3: oklch(0.22 0.010 60);
-    --ink: oklch(0.94 0.010 85);
-    --ink-2: oklch(0.78 0.010 85);
-    --ink-3: oklch(0.62 0.010 85);
-    --ink-4: oklch(0.45 0.010 85);
-    --rule: oklch(0.30 0.010 70);
-    --rule-2: oklch(0.40 0.012 70);
-    --accent: oklch(0.78 0.20 140);
-    --accent-wash: oklch(0.78 0.20 140 / 0.14);
-    --on-accent: #0b0e0a;
-    --card: rgba(30, 28, 25, 0.92);
-  }
-}
-:root[data-theme="dark"] {
-  --paper: oklch(0.14 0.008 60);
-  --paper-2: oklch(0.18 0.008 60);
-  --paper-3: oklch(0.22 0.010 60);
-  --ink: oklch(0.94 0.010 85);
-  --ink-2: oklch(0.78 0.010 85);
-  --ink-3: oklch(0.62 0.010 85);
-  --ink-4: oklch(0.45 0.010 85);
-  --rule: oklch(0.30 0.010 70);
-  --rule-2: oklch(0.40 0.012 70);
-  --accent: oklch(0.78 0.20 140);
-  --accent-wash: oklch(0.78 0.20 140 / 0.14);
-  --on-accent: #0b0e0a;
-  --card: rgba(30, 28, 25, 0.92);
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: var(--paper); color: var(--ink); }
-body {
-  font-family: var(--sans);
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-  overflow: hidden;
-}
-button { font: inherit; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); }
+body { font: 17px/1.6 var(--sans); overflow: hidden; }
 [hidden] { display: none !important; }
 
-.app { height: 100vh; height: 100dvh; display: grid; grid-template-rows: 44px 32px 1fr 24px; }
+.app { height: 100vh; height: 100dvh; display: grid; grid-template-rows: 1fr minmax(240px, 45%); }
 
-/* ── top bar ── */
-.topbar {
-  display: flex; align-items: center; gap: 18px;
-  padding: 0 var(--pad);
-  border-bottom: 0.5px solid var(--rule);
-  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
-}
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 12px; color: var(--ink); }
-.brand-mark {
-  width: 18px; height: 18px; display: grid; place-items: center;
-  font-size: 9px; font-weight: 700; color: var(--paper); background: var(--ink); border-radius: 3px;
-}
-.topbar .spacer { flex: 1; }
-.topbar .meta { display: flex; gap: 16px; align-items: center; }
-.topbar .meta b { color: var(--ink); font-weight: 500; }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); display: inline-block; margin-right: 6px; vertical-align: 1px; }
-.dot.on { background: var(--accent); animation: pulse 1.4s infinite; }
-@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-
-/* ── pane header ── */
-.pane-hd {
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 var(--pad);
-  border-bottom: 0.5px solid var(--rule);
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
-  white-space: nowrap; overflow: hidden;
-}
-.pane-hd .num {
-  width: 16px; height: 16px; display: inline-grid; place-items: center; flex: none;
-  font-size: 9.5px; letter-spacing: 0; color: var(--ink-2);
-  border: 0.5px solid var(--rule-2); border-radius: 3px; background: var(--paper-2);
-}
-.pane-hd .file { overflow: hidden; text-overflow: ellipsis; }
-.pill {
-  margin-left: auto; flex: none;
-  font-size: 9.5px; padding: 2px 8px; letter-spacing: 0.06em;
-  border: 0.5px solid var(--rule-2); border-radius: 999px; color: var(--ink-2);
-}
-.pill.live { color: var(--accent); border-color: var(--accent); }
-.pill.live::before {
-  content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--accent); margin-right: 6px; vertical-align: 1px; animation: pulse 1.4s infinite;
-}
-
-/* ── body: pdf over chat ── */
-.body { display: grid; grid-template-rows: 1fr minmax(220px, 42%); min-height: 0; }
-
-.pdfview { position: relative; display: grid; grid-template-rows: 1fr auto; min-height: 0; background: var(--paper-2); }
-.pdfscroll { overflow: auto; padding: 20px; min-height: 0; }
-.pages { display: flex; flex-direction: column; align-items: center; gap: 16px; width: max-content; min-width: 100%; }
-.pagewrap {
-  position: relative; background: #fff;
-  border: 0.5px solid var(--rule);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.06);
-}
-.pagewrap canvas { display: block; }
-.pagewrap canvas.heat { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; }
-.pdf-loading { font-family: var(--mono); font-size: 11px; color: var(--ink-3); padding: 40px; text-align: center; }
+/* PDF */
+.pdfview { position: relative; min-height: 0; background: var(--paper-2); border-bottom: 1px solid var(--rule); }
+.pdfscroll { height: 100%; overflow: auto; padding: 28px 20px; }
+.pages { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.page { position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.05); }
+.page canvas { display: block; }
+.page canvas.heat { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; }
+.loading { color: var(--ink-3); font-family: var(--mono); font-size: 14px; padding: 40px; }
 
 /* token stream card */
-.stream-card {
-  position: absolute; top: 10px; right: 10px; width: 280px; z-index: 5;
-  background: var(--card);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border: 0.5px solid var(--rule); border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+.card {
+  position: absolute; top: 12px; right: 12px; width: 360px; z-index: 2;
+  background: rgba(250, 248, 243, 0.95); border: 1px solid var(--rule); border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06); font-family: var(--mono); font-size: 13px;
 }
 .card-hd {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 8px 12px; border: 0; background: none; cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px;
+  border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-2);
+  letter-spacing: 0.08em; text-transform: uppercase;
 }
-.card-hd .led { color: var(--ink-4); }
-.card-hd .led.on { color: var(--accent); }
-.card-hd .state { margin-left: auto; font-size: 9px; color: var(--ink-4); }
-.card-hd .tog { width: 10px; text-align: center; font-size: 11px; color: var(--ink-3); }
-.stream-body {
-  border-top: 0.5px solid var(--rule);
-  padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
-  font-family: var(--mono); font-size: 10.5px;
-}
-.stream-card.collapsed .stream-body { display: none; }
-.stream-sub { color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; font-size: 9.5px; margin-bottom: 2px; display: flex; }
-.stream-sub span:last-child { margin-left: auto; }
-.trow { display: grid; grid-template-columns: 92px 1fr 38px 52px; gap: 8px; align-items: center; }
-.trow .tk { white-space: pre; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
-.trow.cur .tk { color: var(--accent); font-weight: 600; }
-.trow .bar { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.card-hd .led { color: var(--ink-3); }
+.card-hd .led.on { color: rgb(var(--heat)); }
+.card-hd .tog { margin-left: auto; }
+.card-body { border-top: 1px solid var(--rule); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 5px; }
+.card.collapsed .card-body, .card-body:empty { display: none; }
+.trow { display: grid; grid-template-columns: 1fr 80px 4ch 8ch; gap: 10px; align-items: center; }
+.trow .tk { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.trow .bar { height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
 .trow .bar span { display: block; height: 100%; background: var(--ink-3); }
-.trow.cur .bar span { background: var(--accent); }
-.trow .pv { color: var(--ink-3); font-variant-numeric: tabular-nums; text-align: right; }
-.trow .src { font-size: 9px; text-align: right; color: var(--ink-4); letter-spacing: 0.04em; }
-.trow .src.cp { color: var(--accent); }
-.stream-empty { color: var(--ink-4); }
+.trow.cp .bar span { background: rgb(var(--heat)); }
+.trow .pv { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.trow .src { color: var(--ink-3); }
+.trow.cp .src { color: rgb(var(--heat)); }
+.rows { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; overscroll-behavior: contain; scrollbar-width: none; }
+.rows::-webkit-scrollbar { display: none; }
+.sum { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--rule); color: var(--ink-2); }
 
-.pdf-toolbar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 6px var(--pad);
-  border-top: 0.5px solid var(--rule); background: var(--paper);
-  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
-  white-space: nowrap; overflow: hidden;
-}
-.pdf-toolbar .sep { color: var(--rule-2); }
-.pdf-toolbar .spacer { flex: 1; }
-.legend { display: inline-flex; align-items: center; gap: 6px; }
-.legend i {
-  display: inline-block; width: 46px; height: 6px; border-radius: 2px;
-  background: linear-gradient(to right, rgba(var(--heat), 0.06), rgba(var(--heat), 0.8));
-}
-.zoomer { display: flex; gap: 2px; }
-.zoomer button {
-  appearance: none; cursor: pointer; padding: 3px 8px; border-radius: 3px;
-  border: 0.5px solid var(--rule-2); background: var(--paper); color: var(--ink-2);
-}
-.zoomer button:hover { background: var(--paper-2); }
+/* chat */
+.chat { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+.msgs { overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.msg { display: flex; }
+.msg .body { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.msg .text { overflow-wrap: anywhere; }
+.msg .text p { margin: 0; }
+.msg.user { justify-content: flex-end; }
+.msg.user .body { max-width: 75%; }
+.msg.user .text { background: var(--paper-2); border-radius: 20px; padding: 10px 16px; }
+.note { color: var(--ink-3); font-style: italic; }
+.err { color: rgb(var(--heat)); }
+.t { border-radius: 2px; }
+.t.cp { background: rgba(var(--heat), 0.14); }
+.t.on { background: rgb(var(--heat)); color: #fff; }
 
-/* ── chat dock ── */
-.chatdock { border-top: 0.5px solid var(--rule); display: grid; grid-template-rows: 1fr auto auto; min-height: 0; }
-.chatmsgs { overflow-y: auto; padding: 12px var(--pad); display: flex; flex-direction: column; gap: 10px; }
-.boot { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); padding: 4px 0; line-height: 1.7; }
-.boot .c { color: var(--ink-2); }
-.boot .d { color: var(--ink-4); }
-.msg { display: grid; grid-template-columns: 52px 1fr; gap: 10px; font-size: 12.5px; line-height: 1.6; }
-.msg .who { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); padding-top: 3px; }
-.msg .who b { display: block; color: var(--ink-2); font-weight: 600; }
-.msg.user .who b { color: var(--accent); }
-.msg .who small { display: block; font-size: 8px; margin-top: 1px; letter-spacing: 0.04em; }
-.msg .text { min-width: 0; overflow-wrap: anywhere; }
-.msg.bot .text { cursor: default; }
-.msg .t { border-radius: 2px; transition: background .2s; }
-.msg .t.cp { background: rgba(var(--heat), 0.16); }
-.msg .t.on { background: rgb(var(--heat)); color: #fff; }
-.msg .note { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
-.msg .note.err { color: var(--accent); }
-.cursor {
-  display: inline-block; width: 6px; height: 12px; margin-left: 1px; vertical-align: -1px;
-  background: var(--accent); animation: blink 1s steps(2) infinite;
-}
-@keyframes blink { 50% { opacity: 0; } }
-
-.chipbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--pad) 10px; }
+/* suggested questions: stacked on the right, outlined versions of your own bubbles */
+.chips { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .chip {
-  appearance: none; cursor: pointer;
-  font-family: var(--mono); font-size: 10px; padding: 4px 9px;
-  border: 0.5px solid var(--rule-2); border-radius: 999px; color: var(--ink-2); background: var(--paper);
+  font: 16px/1.4 var(--sans); color: var(--ink); background: none; text-align: right;
+  border: 1px solid var(--rule); border-radius: 20px; padding: 8px 16px; cursor: pointer;
 }
-.chip:hover { background: var(--paper-2); border-color: var(--ink-4); }
+.chip:hover { background: var(--paper-2); }
 
-.chatprompt {
-  display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end;
-  padding: 10px var(--pad); border-top: 0.5px solid var(--rule);
+form { display: flex; gap: 12px; align-items: flex-end; padding: 14px 20px; border-top: 1px solid var(--rule); }
+textarea {
+  flex: 1; resize: none; outline: none; font: 17px/1.5 var(--sans); color: var(--ink);
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; max-height: 150px; overflow-y: hidden;
 }
-.chatprompt textarea {
-  appearance: none; resize: none; outline: none;
-  border: 0.5px solid var(--rule-2); border-radius: 6px; background: var(--paper-2); color: var(--ink);
-  font: 13px/1.5 var(--sans); padding: 9px 11px; min-height: 38px; max-height: 120px;
+textarea:focus { border-color: var(--ink-3); background: #fff; }
+#send {
+  height: 48px; padding: 0 20px; border: 0; border-radius: 8px; cursor: pointer;
+  font: 500 16px var(--sans); color: #fff; background: rgb(var(--heat));
 }
-.chatprompt textarea:focus { border-color: var(--ink-3); background: var(--paper); }
-.btn {
-  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; height: 38px;
-  border: 0.5px solid var(--accent); background: var(--accent); color: var(--on-accent);
-  font: 500 11px/1 var(--sans); letter-spacing: 0.02em; padding: 0 12px; border-radius: 6px;
-}
-.btn:hover { opacity: 0.9; }
-.btn[disabled] { opacity: 0.4; cursor: default; }
-.btn .kbd { font-family: var(--mono); font-size: 9.5px; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,0.18); }
-
-/* ── status bar ── */
-.statusbar {
-  display: flex; align-items: center; gap: 14px;
-  padding: 0 var(--pad); border-top: 0.5px solid var(--rule);
-  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
-  white-space: nowrap; overflow: hidden;
-}
-.statusbar .sep { color: var(--rule-2); }
-.statusbar .spacer { flex: 1; }
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 10px; border: 2px solid var(--paper); background-clip: content-box; }
-
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#send[disabled] { opacity: 0.4; cursor: default; }
 
 @media (max-width: 700px) {
-  :root { --pad: 12px; }
-  .topbar .hide-sm, .pdf-toolbar .hide-sm, .statusbar .hide-sm { display: none; }
-  .body { grid-template-rows: 1fr minmax(240px, 52%); }
+  .app { grid-template-rows: 1fr minmax(260px, 52%); }
   .pdfscroll { padding: 12px; }
-  .stream-card { width: 236px; top: 8px; right: 8px; }
-  .trow { grid-template-columns: 70px 1fr 34px 46px; }
+  .card { width: 260px; top: 8px; right: 8px; font-size: 12px; }
+  .trow { grid-template-columns: 1fr 44px 4ch 8ch; gap: 6px; }
 }
 </style>
 </head>
 <body>
 <div class="app">
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">LM</span>Chat with my Resume</div>
-    <span class="hide-sm">answers come from an 83M model reading the resume</span>
-    <div class="spacer"></div>
-    <div class="meta">
-      <span><span class="dot" id="dot"></span><b id="status">ready</b></span>
-      <span class="hide-sm">pdfllm · 83M hybrid</span>
-    </div>
-  </header>
-
-  <div class="pane-hd">
-    <span class="num">01</span><span>chat</span>
-    <span class="file">loaded · resume.pdf</span>
-    <span class="pill" id="pill">idle</span>
-  </div>
-
-  <div class="body">
-    <div class="pdfview" id="pdfview">
-      <div class="pdfscroll" id="pdfscroll">
-        <div class="pages" id="pages"><div class="pdf-loading" id="pdf-loading">loading pdf…</div></div>
-      </div>
-
-      <div class="stream-card" id="stream-card">
-        <button class="card-hd" id="stream-toggle" type="button" aria-expanded="true">
-          <span class="led" id="stream-led">●</span><span>token stream</span>
-          <span class="state" id="stream-state">idle</span><span class="tog" id="stream-tog">–</span>
-        </button>
-        <div class="stream-body" id="stream-body">
-          <div class="stream-sub"><span>output · p(token)</span><span>source</span></div>
-          <div class="stream-empty">—  awaiting generation  —</div>
-        </div>
-      </div>
-
-      <div class="pdf-toolbar">
-        <span class="hide-sm">resume.pdf</span><span class="sep hide-sm">│</span>
-        <span id="page-count">— pages</span><span class="sep">│</span>
-        <span id="heat-stat">heatmap idle</span>
-        <span class="legend hide-sm" title="How much the copy head read each word, times how much of the answer token was copied">copied from <i></i></span>
-        <div class="spacer"></div>
-        <div class="zoomer">
-          <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
-          <button type="button" id="zoom-fit" aria-label="Fit width">100%</button>
-          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
-        </div>
-      </div>
+  <div class="pdfview">
+    <div class="pdfscroll" id="scroll">
+      <div class="pages" id="pages"><div class="loading" id="pdf-loading">loading the resume…</div></div>
     </div>
 
-    <div class="chatdock">
-      <div class="chatmsgs" id="msgs">
-        <div class="boot" id="boot">
-          <div class="c">// model ready</div>
-          <div>$ pdfllm --resume resume.txt --copy-head on</div>
-          <div class="d">83M params · attention + Mamba-3 · ONNX Runtime on CPU</div>
-          <div class="d">the PDF lights up where each answer word was copied from ↓</div>
-        </div>
-      </div>
-      <div class="chipbar" id="chips">
-        <button type="button" class="chip">Where did you study?</button>
-        <button type="button" class="chip">Who is your advisor?</button>
-        <button type="button" class="chip">What is Tri-Mem?</button>
-        <button type="button" class="chip">What did you build at Spontivly?</button>
-        <button type="button" class="chip">What's your favorite food?</button>
-      </div>
-      <form class="chatprompt" id="form">
-        <textarea id="input" rows="1" maxlength="500" placeholder="ask aniruddha anything…" aria-label="Your question"></textarea>
-        <button class="btn" id="send" type="submit" disabled>send <span class="kbd">↵</span></button>
-      </form>
+    <div class="card" id="card">
+      <button class="card-hd" id="card-toggle" type="button" aria-expanded="true">
+        <span class="led" id="led">●</span><span>token stream</span>
+        <span class="tog" id="card-tog">–</span>
+      </button>
+      <div class="card-body" id="stream"></div>
     </div>
   </div>
 
-  <footer class="statusbar">
-    <span>p1_grpo_persona_nosquad</span><span class="sep">│</span>
-    <span id="timing">greedy · up to 64 tokens</span>
-    <div class="spacer"></div>
-    <span class="hide-sm">shade = copy-head attention × copy share</span>
-  </footer>
+  <div class="chat">
+    <div class="msgs" id="msgs">
+      <div class="msg bot"><div class="body"><div class="text" id="greet"></div></div></div>
+      <div class="msg user" id="examples">
+        <div class="chips">
+          <button type="button" class="chip">Where did you study?</button>
+          <button type="button" class="chip">Who is your advisor?</button>
+          <button type="button" class="chip">What is Tri-Mem?</button>
+          <button type="button" class="chip">What did you build at Spontivly?</button>
+          <button type="button" class="chip">What's your favorite food?</button>
+        </div>
+      </div>
+    </div>
+    <form id="form">
+      <textarea id="input" rows="1" maxlength="500" placeholder="ask me anything…" aria-label="Your question"></textarea>
+      <button id="send" type="submit" disabled>send</button>
+    </form>
+  </div>
 </div>
 
 <script type="module">
@@ -355,28 +152,27 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  pdfview: $('pdfview'), scroll: $('pdfscroll'), pages: $('pages'), loading: $('pdf-loading'),
-  msgs: $('msgs'), boot: $('boot'), chips: $('chips'), form: $('form'), input: $('input'), send: $('send'),
-  dot: $('dot'), status: $('status'), pill: $('pill'), heatStat: $('heat-stat'), timing: $('timing'),
-  card: $('stream-card'), cardBody: $('stream-body'), led: $('stream-led'), cardState: $('stream-state'),
+  scroll: $('scroll'), pages: $('pages'), msgs: $('msgs'), form: $('form'), input: $('input'), send: $('send'),
+  card: $('card'), stream: $('stream'), led: $('led'),
 };
+const HEAT = '192, 57, 43';
 
 // ── PDF + word boxes ────────────────────────────────────────────────
 // pdfllm/resume_words.json: [page, x0, y0, x1, y1, start, end] in PDF points, from pdfllm/tools/word_map.py
-let pdf = null, wordMap = { pages: [], words: [] }, zoom = 1, pageEls = [];
+let pdf = null, wordMap = { pages: [], words: [] }, pageEls = [];
 
 async function renderPages() {
   if (!pdf) return;
-  const avail = els.scroll.clientWidth - (window.innerWidth <= 700 ? 24 : 40);
+  const avail = els.scroll.clientWidth - (window.innerWidth <= 700 ? 24 : 32);
   const frag = document.createDocumentFragment(), made = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const base = page.getViewport({ scale: 1 });
-    const css = Math.max(260, Math.min(avail, 820)) * zoom / base.width;  // CSS px per PDF point
+    const css = Math.max(260, Math.min(avail, 900)) / base.width;  // CSS px per PDF point
     const dpr = window.devicePixelRatio || 1;
     const vp = page.getViewport({ scale: css * dpr });
     const wrap = document.createElement('div');
-    wrap.className = 'pagewrap';
+    wrap.className = 'page';
     const w = Math.round(base.width * css), h = Math.round(base.height * css);
     wrap.style.width = w + 'px'; wrap.style.height = h + 'px';
     const cv = document.createElement('canvas'), heat = document.createElement('canvas');
@@ -389,7 +185,6 @@ async function renderPages() {
   }
   els.pages.replaceChildren(frag);
   pageEls = made;
-  $('zoom-fit').textContent = Math.round(zoom * 100) + '%';
   draw();
 }
 
@@ -400,10 +195,9 @@ async function loadPdf() {
       fetch('/pdfllm/resume_words.json').then(r => r.ok ? r.json() : wordMap).catch(() => wordMap),
     ]);
     pdf = doc; wordMap = map;
-    $('page-count').textContent = pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages');
     await renderPages();
   } catch (err) {
-    els.loading.textContent = 'failed to load pdf';
+    $('pdf-loading').textContent = 'could not load the resume';
     console.error(err);
   }
 }
@@ -413,30 +207,23 @@ async function loadPdf() {
 // fading back to level. pinned: sources of the token under the pointer, held while hovering.
 let level = new Map(), flash = new Map(), pinned = null, raf = 0, lastT = 0;
 
-function heatRGB() { return getComputedStyle(document.documentElement).getPropertyValue('--heat').trim(); }
-
 function draw() {
-  const rgb = heatRGB();
   const maxL = Math.max(0.0001, ...level.values());
   for (const [pi, pe] of pageEls.entries()) {
     const ctx = pe.heat.getContext('2d'), k = pe.css * pe.dpr;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, pe.heat.width, pe.heat.height);
-    const paint = (w, a, glow) => {
+    const paint = (w, a) => {
       const box = wordMap.words[w];
       if (!box || box[0] !== pi || a < 0.02) return;
       const pad = 1.5 * pe.dpr;
-      const x = box[1] * k - pad, y = box[2] * k - pad, wd = (box[3] - box[1]) * k + 2 * pad, ht = (box[4] - box[2]) * k + 2 * pad;
-      ctx.shadowColor = `rgba(${rgb}, ${Math.min(1, a)})`;
-      ctx.shadowBlur = glow * pe.dpr;
-      ctx.fillStyle = `rgba(${rgb}, ${Math.min(0.85, a)})`;
+      ctx.fillStyle = `rgba(${HEAT}, ${Math.min(0.85, a)})`;
       ctx.beginPath();
-      ctx.roundRect(x, y, wd, ht, 2 * pe.dpr);
+      ctx.roundRect(box[1] * k - pad, box[2] * k - pad, (box[3] - box[1]) * k + 2 * pad, (box[4] - box[2]) * k + 2 * pad, 2 * pe.dpr);
       ctx.fill();
     };
     const top = pinned || flash;
-    for (const [w, v] of level) if (!top.has(w)) paint(w, 0.08 + 0.42 * Math.pow(v / maxL, 0.7), 6);
-    for (const [w, v] of top) paint(w, 0.22 + 0.6 * Math.min(1, v), 14);
+    for (const [w, v] of level) if (!top.has(w)) paint(w, 0.08 + 0.42 * Math.pow(v / maxL, 0.7));
+    for (const [w, v] of top) paint(w, 0.22 + 0.6 * Math.min(1, v));
   }
 }
 
@@ -453,80 +240,60 @@ function kick() { if (!raf) raf = requestAnimationFrame(tick); }
 function scrollToWord(w) {
   const box = wordMap.words[w], pe = box && pageEls[box[0]];
   if (!pe) return;
-  const s = els.scroll, wr = pe.wrap;
-  const y = wr.offsetTop + box[2] * pe.css, x = wr.offsetLeft + box[1] * pe.css;
+  const s = els.scroll;
+  const y = pe.wrap.offsetTop + box[2] * pe.css;
   if (y < s.scrollTop + 30 || y > s.scrollTop + s.clientHeight - 50)
     s.scrollTo({ top: y - s.clientHeight / 2, behavior: 'smooth' });
-  if (x < s.scrollLeft || x > s.scrollLeft + s.clientWidth - 40)
-    s.scrollTo({ left: x - s.clientWidth / 2, behavior: 'smooth' });
-}
-
-function heatStat() {
-  els.heatStat.textContent = level.size ? `${level.size} word${level.size === 1 ? '' : 's'} lit` : 'heatmap idle';
-}
-
-// ── status ──────────────────────────────────────────────────────────
-function setState(s) {  // idle | reading | decoding
-  const busy = s !== 'idle';
-  els.dot.classList.toggle('on', busy);
-  els.status.textContent = s === 'idle' ? 'ready' : s;
-  els.pill.textContent = s;
-  els.pill.classList.toggle('live', busy);
-  els.led.classList.toggle('on', s === 'decoding');
-  els.cardState.textContent = s === 'decoding' ? 'live' : s;
 }
 
 // ── token stream card ───────────────────────────────────────────────
-function renderStream(toks, live) {
-  const rows = toks.slice(-8);
-  const sub = els.cardBody.firstElementChild;
-  els.cardBody.replaceChildren(sub);
-  if (!rows.length) {
-    const e = document.createElement('div'); e.className = 'stream-empty'; e.textContent = '—  awaiting generation  —';
-    els.cardBody.append(e); return;
-  }
-  rows.forEach((t, i) => {
+function setLive(on) { els.led.classList.toggle('on', on); }
+
+function renderStream(ans) {  // every token, where each came from, and a total for the answer
+  const toks = ans.toks;
+  if (!toks.length) { els.stream.replaceChildren(); return; }
+  const kind = (t) => t.copy < 0.5 ? 'model' : (t.q || 0) > t.copy / 2 ? 'question' : 'resume';  // q: copied from the question
+  const rows = toks.map(t => {
+    const k = kind(t);
     const r = document.createElement('div');
-    r.className = 'trow' + (live && i === rows.length - 1 ? ' cur' : '');
-    r.style.opacity = 1 - (rows.length - 1 - i) * 0.07;
+    r.className = 'trow' + (k === 'model' ? '' : ' cp');
     const tk = document.createElement('span'); tk.className = 'tk'; tk.textContent = JSON.stringify(t.t);
+    const share = k === 'model' ? 1 - t.copy : t.copy;  // how much of this token came from that source
     const bar = document.createElement('span'); bar.className = 'bar';
-    const fill = document.createElement('span'); fill.style.width = (t.p * 100).toFixed(1) + '%'; bar.append(fill);
-    const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = t.p.toFixed(3);
-    const src = document.createElement('span');
-    const copied = t.copy >= 0.5;
-    src.className = 'src' + (copied ? ' cp' : '');
-    const fromQ = copied && (t.q || 0) > t.copy / 2;  // copied from the question, not the resume
-    src.textContent = fromQ ? 'copy · q' : copied ? `copy ${t.copy.toFixed(2)}` : 'model';
-    src.title = `copy share ${t.copy.toFixed(3)}: how much of this token came from the copy head`
-      + (fromQ ? ', mostly from your question' : '');
+    const fill = document.createElement('span'); fill.style.width = (share * 100).toFixed(1) + '%'; bar.append(fill);
+    const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = share.toFixed(2);
+    const src = document.createElement('span'); src.className = 'src'; src.textContent = k;
     r.append(tk, bar, pv, src);
-    els.cardBody.append(r);
+    return r;
   });
+  const sum = document.createElement('div'); sum.className = 'sum';
+  sum.textContent = `${toks.length} token${toks.length === 1 ? '' : 's'}`
+    + (ans.secs != null ? ` · ${ans.secs.toFixed(1)} s` : '');
+  const box = document.createElement('div'); box.className = 'rows';
+  box.append(...rows);
+  els.stream.replaceChildren(box, sum);
+  box.scrollTop = busy ? box.scrollHeight : 0;  // follow new tokens while streaming
 }
 
-$('stream-toggle').addEventListener('click', () => {
+$('card-toggle').addEventListener('click', () => {
   const c = els.card.classList.toggle('collapsed');
-  $('stream-tog').textContent = c ? '+' : '–';
-  $('stream-toggle').setAttribute('aria-expanded', String(!c));
+  $('card-tog').textContent = c ? '+' : '–';
+  $('card-toggle').setAttribute('aria-expanded', String(!c));
 });
-if (window.innerWidth <= 700) $('stream-toggle').click();
+if (window.innerWidth <= 700) $('card-toggle').click();
 
 // ── chat ────────────────────────────────────────────────────────────
 let busy = false, shown = null;  // shown: the answer whose heat is on the PDF
 
 function scrollMsgs() { els.msgs.scrollTop = els.msgs.scrollHeight; }
 
-function addMsg(who, text) {
+function addMsg(who) {
   const m = document.createElement('div');
   m.className = 'msg ' + who;
-  const w = document.createElement('div'); w.className = 'who';
-  const b = document.createElement('b'); b.textContent = who === 'user' ? 'you' : 'me';
-  w.append(b);
-  if (who === 'bot') { const s = document.createElement('small'); s.textContent = '83M · greedy'; w.append(s); }
+  const body = document.createElement('div'); body.className = 'body';
   const t = document.createElement('div'); t.className = 'text';
-  if (text) t.textContent = text;
-  m.append(w, t);
+  body.append(t);
+  m.append(body);
   els.msgs.append(m);
   scrollMsgs();
   return t;
@@ -535,11 +302,11 @@ function addMsg(who, text) {
 function showAnswer(ans) {  // put one answer's accumulated heat on the PDF
   shown = ans; pinned = null; flash.clear();
   level = new Map(ans.level);
-  heatStat(); draw();
+  draw();
 }
 
 function wireAnswer(ans) {
-  ans.el.addEventListener('mouseenter', () => { if (!busy && shown !== ans) showAnswer(ans); });
+  ans.el.addEventListener('mouseenter', () => { if (!busy && shown !== ans) { showAnswer(ans); renderStream(ans); } });
   ans.el.addEventListener('mouseover', (e) => {
     const s = e.target.closest('.t');
     if (busy || !s) return;
@@ -561,20 +328,19 @@ async function ask(q) {
   q = q.trim();
   if (!q || busy) return;
   busy = true;
-  els.boot.hidden = true; els.chips.hidden = true;
+  $('examples').hidden = true;
   els.input.value = ''; autosize(); els.send.disabled = true;
-  addMsg('user', q);
+  addMsg('user').textContent = q;
   const text = addMsg('bot');
-  const ans = { el: text, toks: [], level: new Map() };
+  const ans = { el: text, toks: [], level: new Map(), secs: null };
+  const t0 = performance.now();
   showAnswer(ans);
-  renderStream([], false);
+  renderStream(ans);
   const note = document.createElement('span'); note.className = 'note'; note.textContent = 'reading the resume…';
-  const cursor = document.createElement('span'); cursor.className = 'cursor';
-  text.append(note, cursor);
-  setState('reading');
+  text.append(note);
 
   // Tokens can arrive in one burst if the response is buffered; replay them at a readable pace.
-  const queue = []; let done = null, failed = null, wake = null;
+  const queue = []; let failed = null, wake = null;
   const push = (ev) => { queue.push(ev); if (wake) { wake(); wake = null; } };
   const wait = () => new Promise(r => { wake = r; });
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -600,73 +366,81 @@ async function ask(q) {
     }
   })().catch(e => { failed = e; }).finally(() => push({ type: 'eof' }));
 
-  let first = true;
   for (;;) {
     while (!queue.length) await wait();
     const ev = queue.shift();
     if (ev.type === 'eof') break;
-    if (ev.type === 'start') { note.textContent = `reading the resume · ${ev.prompt_tokens} tokens…`; continue; }
     if (ev.type === 'error') { failed = new Error(ev.detail); continue; }
-    if (ev.type === 'done') { done = ev; continue; }
     if (ev.type !== 'token') continue;
-    if (first) { note.remove(); setState('decoding'); first = false; }
+    if (!ans.toks.length) { note.remove(); setLive(true); }
     const i = ans.toks.length;
     ans.toks.push(ev);
     const span = document.createElement('span');
     span.className = 't' + (ev.copy >= 0.5 ? ' cp' : '');
     span.dataset.i = i;
     span.textContent = i === 0 ? ev.t.trimStart() : ev.t;
-    text.insertBefore(span, cursor);
+    text.append(span);
     for (const [w, v] of ev.src) ans.level.set(w, (ans.level.get(w) || 0) + v);
     if (shown === ans) {
       level = new Map(ans.level);
       flash = new Map(ev.src);
-      kick(); heatStat();
+      kick();
       if (ev.src.length && ev.src[0][1] > 0.2) scrollToWord(ev.src[0][0]);
     }
-    renderStream(ans.toks, true);
+    renderStream(ans);
     scrollMsgs();
     if (queue.length > 1) await sleep(60);
   }
   await reader;
-  cursor.remove();
   if (failed) {
     note.remove();
-    const e = document.createElement('span'); e.className = 'note err'; e.textContent = 'error: ' + failed.message;
-    text.append(document.createTextNode(' '), e);
+    const e = document.createElement('span'); e.className = 'err'; e.textContent = 'error: ' + failed.message;
+    text.append(e);
   } else if (!ans.toks.length) {
     note.textContent = '(no response)';
   }
-  if (done) els.timing.textContent = `read ${done.first_token_s}s · ${done.new_tokens} tokens in ${done.total_s}s`;
-  renderStream(ans.toks, false);
+  ans.secs = (performance.now() - t0) / 1000;
+  renderStream(ans);
   wireAnswer(ans);
-  setState('idle');
+  setLive(false);
   busy = false;
   els.send.disabled = !els.input.value.trim();
   els.input.focus();
 }
 
 // ── input ───────────────────────────────────────────────────────────
-function autosize() { els.input.style.height = 'auto'; els.input.style.height = Math.min(120, els.input.scrollHeight) + 'px'; }
+function autosize() {  // grow with the text up to 150px; scroll only past that (+2 for the border, box-sizing)
+  const el = els.input;
+  el.style.height = 'auto';
+  const h = el.scrollHeight + 2;
+  el.style.height = Math.min(150, h) + 'px';
+  el.style.overflowY = h > 150 ? 'auto' : 'hidden';
+}
 els.input.addEventListener('input', () => { autosize(); els.send.disabled = busy || !els.input.value.trim(); });
 els.input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(els.input.value); }
 });
 els.form.addEventListener('submit', (e) => { e.preventDefault(); ask(els.input.value); });
-els.chips.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) ask(c.textContent); });
+$('examples').addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) ask(c.textContent); });
 
-// ── zoom + resize ───────────────────────────────────────────────────
-$('zoom-in').addEventListener('click', () => { zoom = Math.min(2.5, +(zoom + 0.25).toFixed(2)); renderPages(); });
-$('zoom-out').addEventListener('click', () => { zoom = Math.max(0.5, +(zoom - 0.25).toFixed(2)); renderPages(); });
-$('zoom-fit').addEventListener('click', () => { zoom = 1; renderPages(); });
 let rt = 0, lastW = 0;
 new ResizeObserver(() => {
   const w = els.scroll.clientWidth;
   if (!pdf || Math.abs(w - lastW) < 8) return;
   lastW = w; clearTimeout(rt); rt = setTimeout(renderPages, 150);
 }).observe(els.scroll);
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
 
+// The greeting arrives word by word, like an answer.
+(async () => {
+  const words = "Hi! Ask me anything about my resume.".split(/(?= )/);
+  const fast = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (const w of words) {
+    $('greet').append(w);
+    if (!fast) await new Promise(r => setTimeout(r, 70));
+  }
+})();
+
+autosize();
 els.input.focus();
 loadPdf();
 </script>

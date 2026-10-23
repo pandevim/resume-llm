@@ -17,8 +17,9 @@ The model has a copy head: at each step it attends over every earlier token and 
 
 - **On the PDF**, each answer token lights the words it attended to, weighted by its copy share
   (1 - gate). Words built up over the answer stay shaded; the newest token's words flash.
-- **The token stream card** lists the last 8 tokens with their probability and where they came from:
-  `copy 0.98` (from the resume), `copy · q` (from your question), or `model` (the vocabulary side).
+- **The token stream card** lists every answer token with where it came from and how much:
+  `0.98 resume` (copied from the resume, red bar), `question` (copied from your question), or
+  `0.89 model` (the vocabulary side, grey bar). The last line gives the token count and the time.
 - **Hover** an answer word to show only its sources.
 
 For "Where did you study?", "Hoboken" is 100% copied and 87% of the head's attention is on the
